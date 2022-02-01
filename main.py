@@ -169,6 +169,54 @@ def process_df(
 
 
 
+def filter_df(
+    df,
+    criterion="in",
+    key="Project",
+    values=["nlp-emergent-languages",],
+):
+    for v in values:
+        if criterion == "in":
+            df = df[df[key] == v]
+        else:
+            df = df[df[key] != v]
+    return df
+
+
+
+def get_compressed_files(
+    row,
+    args,
+):
+    compressed_basenames = list(map(os.path.basename, (row["URL(s)"])))
+    compressed_files = list(map(lambda x: args.datasets_dir + row["project"] + "/" + row["task"] + "/"))
+    return compressed_files
+
+
+
+def unzip_handler(
+    df_selected,
+    args,
+):
+    for row in df_selected.rows:
+        compressed_files = get_compressed_files(row, args)
+        for zip_file in compressed_files :
+            os.remove(os.path(zip_file))
+            console.log(f"|[red]{row["Project"]}[/red]| |[yellow]{row["Task"]}[/yellow]| [table.caption]Unzipped file[/table.caption] {zip_file} [table.caption]![/table.caption]")
+
+
+def zip_delete_handler(
+    df_selected,
+    args,
+):
+    for row in df_selected.rows:
+        compressed_files = get_compressed_files(row, args)
+        for zip_file in compressed_files :
+            os.remove(os.path(zip_file))
+            console.log(f"|[red]{row["Project"]}[/red]| |[yellow]{row["Task"]}[/yellow]| [table.caption]Deleted file[/table.caption] {zip_file} [table.caption]![/table.caption]")
+
+
+
 def process_actions(
     df,
     args,
@@ -179,19 +227,20 @@ def process_actions(
     ):
         path = os.path.join(
             parent_dir, 
-            "project/",
+            project + "/",
         )
         os.makedirs(
             path, 
             exist_ok=True,
         )
+        console.log(f"|[red]{row["Project"]}[/red]| |[yellow]{row["Task"]}[/yellow]| [table.caption]Created directory[/table.caption] {str(path)} [table.caption]![/table.caption]")
 
     def clean_dir(
         path,
     )
         files = glob.glob(path)
         for f in files:
-            console.log(f"[table.caption]Deleting {f} ...[/table.caption]")
+            console.log(f"[table.caption]Deleting[/table.caption] {str(f)} [table.caption]...[/table.caption]")
             os.remove(f)
 
     if args.do_reset_scratch:
@@ -226,10 +275,12 @@ def process_actions(
 
     if args.do_unzip:
         console.log("[logging.level.info]Unzipping intermediate ZIP files ...[/logging.level.info]")
+        unzip_handler(df_selected)
 
     if args.do_delete_zip:
         if Confirm.ask("[logging.keyword]Are you sure you want to delete intermediate ZIP files ?[/logging.keyword]"):
             console.log("[logging.level.debug]Deleting intermediate ZIP files ...[/logging.level.debug]")
+            zip_delete_handler(df_selected)
         else:
             console.log("[logging.level.error]Did not delete intermediate ZIP files ![/logging.level.error]")
 
@@ -258,6 +309,50 @@ def select_datasets(
     df,
     args,
 ):
+    if args.include != []:
+        df = filter_df(
+            df,
+            criterion="in",
+            key="Dataset name",
+            values=args.include,
+        )
+    if args.exclude != []:
+        df = filter_df(
+            df,
+            criterion="out",
+            key="Dataset name",
+            values=args.exclude,
+        )
+    if args.include_projects != []:
+        df = filter_df(
+            df,
+            criterion="in",
+            key="project_key",
+            values=args.include_projects,
+        )
+    if args.exclude_projects != []:
+        df = filter_df(
+            df,
+            criterion="out",
+            key="project_key",
+            values=args.exclude_projects,
+        )
+    if args.include_tasks != []:
+        df = filter_df(
+            df,
+            criterion="in",
+            key="task_key",
+            values=args.include_tasks,
+        )
+    if args.exclude_tasks != []:
+        df = filter_df(
+            df,
+            criterion="out",
+            key="task_key",
+            values=args.exclude_tasks,
+        )
+
+    return df
 
 
 
@@ -523,18 +618,18 @@ if __name__ == "__main__":
     sc.add(f"[markdown.strong]outputs_dir[/markdown.strong] = [markdown.emph]{args.outputs_dir}[/markdown.emph]")
     sc.add(f"[markdown.strong]logs_dir[/markdown.strong] = [markdown.emph]{args.logs_dir}[/markdown.emph]")
     print(tree)
-
-    # 2. If actions are specified, execute the actions
-    print(Panel(Text("2. Executing actions", justify="center")))
-    process_actions(
-        df, 
+    
+    # 2. Select the relevant datasets
+    print(Panel(Text("2. Select relevant datasets", justify="center")))
+    df_selected = select_datasets(
+        df,
         args,
     )
     
-    # 3. Select the relevant datasets
-    print(Panel(Text("3. Select relevant datasets", justify="center")))
-    df_selected = select_datasets(
-        df,
+    # 3. If actions are specified, execute the actions
+    print(Panel(Text("3. Executing actions", justify="center")))
+    process_actions(
+        df_selected, 
         args,
     )
 

@@ -24,6 +24,7 @@ import argparse
 import concurrent.futures
 import requests
 import glob
+import shutil
 from time import time
 from time import sleep
 
@@ -103,15 +104,18 @@ DO_ERASE = False
 DO_UNZIP = False
 DO_DELETE_ZIP = False
 
-CLEAN_CHECKPOINTS = False
-CLEAN_LOGS = False
-CLEAN_OUTPUTS = False
+CLEAN_CHECKPOINTS = None
+CLEAN_LOGS = None
+CLEAN_OUTPUTS = None
 
 SPREADSHEET_ID = "10ftkEU-FQsGCrrUW4lSuip0g5joUWD_04EJtUeywrLM"
 SPREADSHEET_FILENAME = "datasets_index.csv"
 
 VERBOSE = False
 VISUAL_GUI = False
+
+MULTIPROCESSING = False
+BANDWIDTH_LIMIT = 10_000
 
 
 
@@ -169,12 +173,35 @@ def process_actions(
     df,
     args,
 ):
+    def create_dirs_project(
+        parent_dir,
+        project,
+    ):
+        path = os.path.join(
+            parent_dir, 
+            "project/",
+        )
+        os.makedirs(
+            path, 
+            exist_ok=True,
+        )
+
+    def clean_dir(
+        path,
+    )
+        files = glob.glob(path)
+        for f in files:
+            console.log(f"[table.caption]Deleting {f} ...[/table.caption]")
+            os.remove(f)
+
     if args.do_reset_scratch:
         args.do_erase_scratch = True
         args.do_build_scratch = True
+
     if args.do_erase_scratch:
         if Confirm.ask("[logging.keyword]Are you sure you want to erase 'scratch/' ?[/logging.keyword]"):
             console.log("[logging.level.debug]Erasing 'scratch/' ...[/logging.level.debug]")
+            # shutil.rmtree(args.scratch_dir)
         else:
             console.log("[logging.level.error]Did not delete 'scratch/' ![/logging.level.error]")
 
@@ -183,20 +210,82 @@ def process_actions(
         if not os.listdir(SCRATCH_DIR):
             console.log("Directory 'scratch/' is empty.")
         else:
-            console.log("Directory 'scratch/' is empty. Will not overwrite existing folders.")
+            console.log("Directory 'scratch/' is not empty. While building 'scratch/', we will not overwrite existing folders.")
+        for project in args.projects:
+            create_dirs_project(args.checkpoints_dir)
+            create_dirs_project(args.datasets_dir)
+            create_dirs_project(args.logs_dir)
+            create_dirs_project(args.outputs_dir)
+
     elif args.do_erase:
         if Confirm.ask("[logging.keyword]Are you sure you want to erase the datasets folder ?[/logging.keyword]"):
             console.log("[logging.level.debug]Erasing the 'datasets/' folder ...[/logging.level.debug]")
+            # shutil.rmtree(args.datasets_dir)
         else:
             console.log("[logging.level.error]Did not delete delete the 'datasets/' folder ![/logging.level.error]")
 
     if args.do_unzip:
         console.log("[logging.level.info]Unzipping intermediate ZIP files ...[/logging.level.info]")
+
     if args.do_delete_zip:
         if Confirm.ask("[logging.keyword]Are you sure you want to delete intermediate ZIP files ?[/logging.keyword]"):
             console.log("[logging.level.debug]Deleting intermediate ZIP files ...[/logging.level.debug]")
         else:
             console.log("[logging.level.error]Did not delete intermediate ZIP files ![/logging.level.error]")
+
+    if args.clean_checkpoints:
+        if Confirm.ask("[logging.keyword]Are you sure you want to clean the checkpoints folder ?[/logging.keyword]"):
+            console.log("[logging.level.debug]Cleaning checkpoints ...[/logging.level.debug]")
+            clean_dir(args.checkpoints_dir)
+        else:
+            console.log("[logging.level.error]Did not delete clean the checkpoints directory ![/logging.level.error]")
+    if args.clean_logs:
+        if Confirm.ask("[logging.keyword]Are you sure you want to clean the logs folder ?[/logging.keyword]"):
+            console.log("[logging.level.debug]Cleaning logs ...[/logging.level.debug]")
+            clean_dir(args.logs_dir)
+        else:
+            console.log("[logging.level.error]Did not delete clean the logs directory ![/logging.level.error]")
+    if args.clean_outputs:
+        if Confirm.ask("[logging.keyword]Are you sure you want to clean the outputs folder ?[/logging.keyword]"):
+            console.log("[logging.level.debug]Cleaning outputs ...[/logging.level.debug]")
+            clean_dir(args.outputs_dir)
+        else:
+            console.log("[logging.level.error]Did not delete clean the outputs directory ![/logging.level.error]")
+
+
+
+def select_datasets(
+    df,
+    args,
+):
+
+
+
+def update_statuses(
+    df,
+    args,
+):
+
+
+
+def download_datasets(
+    df,
+    args,
+):
+
+
+
+def extract_datasets(
+    df,
+    args,
+):
+
+
+
+def summary(
+    df,
+    args,
+):
 
 
 
@@ -300,19 +389,19 @@ if __name__ == "__main__":
     group_parser.add_argument(
         "--clean_checkpoints", 
         help="Cleans the 'checkpoints/' subfolder. If no value is provided, cleans checkpoints for all projects. Otherwise, only cleans checkpoints for the selected projects.",
-        type=None,
+        type=list,
         default=CLEAN_CHECKPOINTS,
     )
     group_parser.add_argument(
         "--clean_logs", 
         help="Cleans the 'logs/' subfolder. If no value is provided, cleans logs for all projects. Otherwise, only cleans logs for the selected projects.",
-        type=None,
+        type=list,
         default=CLEAN_LOGS,
     )
     group_parser.add_argument(
         "--clean_outputs", 
         help="Cleans the 'outputs/' subfolder. If no value is provided, cleans outputs for all projects. Otherwise, only cleans outputs for the selected projects.",
-        type=None,
+        type=list,
         default=CLEAN_OUTPUTS,
     )
 
@@ -352,12 +441,29 @@ if __name__ == "__main__":
         "--visual_gui", 
         help="Get a visual GUI to dynamically explore the status of the datasets",
         type=bool,
-        default=VISUAL,
+        default=VISUAL_GUI,
     )
+
+
+    group_parser = parser.add_argument_group("CPU-related options")
+    group_parser.add_argument(
+        "--multiprocessing", 
+        help="Whether to use multiprocessing to accelerate the download process",
+        type=bool,
+        default=MULTIPROCESSING,
+    )
+    group_parser.add_argument(
+        "--BANDWIDTH_LIMIT", 
+        help="Bandwidth limit per worker",
+        type=int,
+        default=BANDWIDTH_LIMIT,
+    )
+
 
     args, _ = parser.parse_known_args()
 
     console.log(args)
+
 
     # 1. Download the datasets_index spreadsheet
     print(Panel(Text("1. Downloading the spreadsheet", justify="center")))
@@ -374,31 +480,48 @@ if __name__ == "__main__":
     except:
         raise Exception("SpreadsheetUnavailable")
 
+    args.home_dir = os.path.join(HOME_DIR)
+    args.root_dir = os.path.join(args.root)
+    args.scratch_dir = os.path.join(
+        args.root_dir, 
+        "scratch/",
+    )
+    args.datasets_dir = os.path.join(
+        args.scratch_dir, 
+        "datasets/",
+    )
+    args.checkpoints_dir = os.path.join(
+        args.scratch_dir, 
+        "checkpoints/",
+    )
+    args.outputs_dir = os.path.join(
+        args.scratch_dir, 
+        "outputs/",
+    )
+    args.logs_dir = os.path.join(
+        args.scratch_dir, 
+        "logs/",
+    )
+    args.projects = PROJECTS
+
     process_df(
         df, 
         args,
     )
-    home_dir = os.path.join(HOME_DIR)
-    root_dir = args.root
-    scratch_dir = os.path.join(root_dir, "scratch/")
-    datasets_dir = os.path.join(scratch_dir, "datasets/")
-    checkpoints_dir = os.path.join(scratch_dir, "checkpoints/")
-    outputs_dir = os.path.join(scratch_dir, "outputs/")
-    logs_dir = os.path.join(scratch_dir, "logs/")
 
     # 2. Scan the local datasets to update the status of each dataset
     # MainView.run(title="[bold] [italic] De profundiS [/italic] [/bold] : Datasets Sycnhronizer utility", log="textual.log")
 
     console.log(df)
     tree = Tree("Directory")
-    hd = tree.add(f"[markdown.strong]home_dir[/markdown.strong] = [markdown.emph]{home_dir}[/markdown.emph]")
+    hd = tree.add(f"[markdown.strong]home_dir[/markdown.strong] = [markdown.emph]{args.home_dir}[/markdown.emph]")
     tree.add("[markdown.strong]projects[/markdown.strong] : " + ', '.join(PROJECTS))
-    sc = hd.add(f"[markdown.strong]scratch_dir[/markdown.strong] = [markdown.emph]{scratch_dir}[/markdown.emph]")
-    hd.add(f"[markdown.strong]root_dir[/markdown.strong] = [markdown.emph]{root_dir}[/markdown.emph]")
-    sc.add(f"[markdown.strong]datasets_dir[/markdown.strong] = [markdown.emph]{datasets_dir}[/markdown.emph]")
-    sc.add(f"[markdown.strong]checkpoints_dir[/markdown.strong] = [markdown.emph]{checkpoints_dir}[/markdown.emph]")
-    sc.add(f"[markdown.strong]outputs_dir[/markdown.strong] = [markdown.emph]{outputs_dir}[/markdown.emph]")
-    sc.add(f"[markdown.strong]logs_dir[/markdown.strong] = [markdown.emph]{logs_dir}[/markdown.emph]")
+    sc = hd.add(f"[markdown.strong]scratch_dir[/markdown.strong] = [markdown.emph]{args.scratch_dir}[/markdown.emph]")
+    hd.add(f"[markdown.strong]root_dir[/markdown.strong] = [markdown.emph]{args.root_dir}[/markdown.emph]")
+    sc.add(f"[markdown.strong]datasets_dir[/markdown.strong] = [markdown.emph]{args.datasets_dir}[/markdown.emph]")
+    sc.add(f"[markdown.strong]checkpoints_dir[/markdown.strong] = [markdown.emph]{args.checkpoints_dir}[/markdown.emph]")
+    sc.add(f"[markdown.strong]outputs_dir[/markdown.strong] = [markdown.emph]{args.outputs_dir}[/markdown.emph]")
+    sc.add(f"[markdown.strong]logs_dir[/markdown.strong] = [markdown.emph]{args.logs_dir}[/markdown.emph]")
     print(tree)
 
     # 2. If actions are specified, execute the actions
@@ -410,35 +533,35 @@ if __name__ == "__main__":
     
     # 3. Select the relevant datasets
     print(Panel(Text("3. Select relevant datasets", justify="center")))
-    select_datasets(
+    df_selected = select_datasets(
         df,
         args,
     )
 
     # 4. Update the statuses of the datasets in the database
     print(Panel(Text("4. Update the database", justify="center")))
-    update_statuses(
-        df,
+    df_updated = update_statuses(
+        df_selected,
         args,
     )
 
     # 5. Download datasets
     print(Panel(Text("5. Download datasets", justify="center")))
-    download_datasets(
-        df,
+    df_downloaded = download_datasets(
+        df_updated,
         args,
     )
 
     # 6. Extract datasets
     print(Panel(Text("6. Extract datasets", justify="center")))
-    extract_datasets(
-        df,
+    df_extracted = extract_datasets(
+        df_downloaded,
         args,
     )
 
     # 7. Summary of the operations
     print(Panel(Text("7. Summary", justify="center")))
     summary(
-        df,
+        df_extracted,
         args,
     )
